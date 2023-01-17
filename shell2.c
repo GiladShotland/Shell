@@ -1,18 +1,5 @@
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <fcntl.h>
-#include "stdio.h"
-#include "errno.h"
-#include "stdlib.h"
-#include "unistd.h"
-#include <string.h>
-#include <signal.h>
+#include "ifelse.h"
 
-typedef struct args{
-    char* command[10];
-    struct args *next;
-    struct args *prev;
-}args;
 
 
 void ctrlcHandler(int dummy) {
@@ -20,14 +7,6 @@ void ctrlcHandler(int dummy) {
     return;
 }
 
-/*
-should be called after forking
-*/
-void pipesHandler(int numPipes)
-{
-
-    
-}
 
 int main()
 {
@@ -74,10 +53,12 @@ int main()
 
         current->command[i] = NULL;
 
+        
         /* Is command empty */
         if (current->command[0] == NULL)
             continue;
-
+        
+        
         if (!strcmp(current->command[0],"quit"))
         {
             exit(0);
@@ -88,6 +69,19 @@ int main()
             if(chdir(current->command[1]))
             {
                 printf("cd: %s: No such file or directory\n", current->command[1]);
+            }
+        }
+        // ifelse(current, root,numPipes);
+        if(!strcmp(current->command[i-2],"echo"))
+        {
+            printf("ok \n");
+            if(current->command[i-1][0] == '$')
+            {
+                char *var;
+                char *temp;
+            
+                printf("%s \n",getenv(current->command[i-1] + 1));
+                continue;
             }
         }
         /* Does command line end with & */
@@ -122,6 +116,25 @@ int main()
             current->command[i - 2] = NULL;
             outfile = current->command[i - 1];
         }
+        // else if(!strcmp(current->command[i-2],"read"))
+        // {
+        //     char *key = root->command[1];
+        //     char value[20];
+        //     char *equalSign = "=";
+        //     fgets(value,20,stdin);
+        //     value[strlen(value) - 1] = '\0';
+        //     char inputForPutEnv[100];
+        //     strcpy(inputForPutEnv,key);
+        //     strcpy(inputForPutEnv+strlen(key),equalSign);
+        //     strcpy(inputForPutEnv+strlen(key)+strlen(equalSign),value);
+        //     printf("%s ",inputForPutEnv);
+            
+        //     if(-1 == putenv(inputForPutEnv))
+        //     {
+        //         printf("failed put env \n");
+        //     }
+        //     continue;
+        // }
         else
         {
             redirect = 0;
@@ -152,17 +165,16 @@ int main()
                 
             }
 
-            if(numPipes > 1)
+            if(numPipes > 0)
             {
-                
                 int firstPipe[2] ;
                 int secondPipe[2];
                 int swich = 0;
                 
-
+                current = root;
                 pipe(firstPipe);
                 if(numPipes > 1) pipe(secondPipe);
-                numPipes--;
+                int pipesCounter = numPipes - 1;
                 swich = 1;
                 status = 1;
                 pid_t pid = fork();
@@ -170,7 +182,7 @@ int main()
                 {
                     dup2(firstPipe[1],1);
                     close(firstPipe[0]);
-                    if(numPipes > 0)
+                    if(numPipes > 1)
                     {
                         close(secondPipe[0]); close(secondPipe[1]);
                     }
@@ -185,8 +197,9 @@ int main()
                     current = current->next;
                 }
 
-                while(numPipes > 0)
+                while(pipesCounter > 0)
                 {
+                    printf("p \n");
                     pid = fork();
                     if(pid == 0)
                     {
@@ -221,21 +234,30 @@ int main()
                         }
 
                         current = current->next;
-                        swich++; numPipes--;
+                        swich++; pipesCounter--;
                     }
                 }
 
-                if(swich % 2 == 1)
-                {
-                    dup2(firstPipe[0],0);
-                }
                 if(swich % 2 == 0)
                 {
                     dup2(secondPipe[0],0);
                 }
-
+                if(swich % 2 == 1)
+                {
+                    dup2(firstPipe[0],0);
+                }
+                printf("pipes \n");    
                 execvp(current->command[0], current->command);
                 exit(0);
+
+                close(firstPipe[0]);
+                close(firstPipe[1]);
+
+                if(numPipes > 1)
+                {
+                    close(firstPipe[0]);
+                    close(firstPipe[1]);
+                }
 
                 
             }
@@ -243,12 +265,22 @@ int main()
             {
                 execvp(current->command[0], current->command);
             }
-            redirecterr = 0;
-            append = 0;
-            redirect = 0;
+            exit(0);
+            // redirecterr = 0;
+            // append = 0;
+            // redirect = 0;
         }
         /* parent continues here */
         if (amper == 0)
             retid = wait(&status);
+
+        args *prev = root;
+        current = root;
+        // for(int i = 0 ; i < numPipes ; i++)
+        // {
+        //     prev = current;
+        //     current = current->next;
+        //     free(prev);
+        // }
     }
 }
